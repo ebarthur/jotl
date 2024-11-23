@@ -9,7 +9,19 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ebarthur/jotl/cmd/config"
 	"github.com/spf13/pflag"
+)
+
+type ConfigPaths struct {
+	ConfigDir  string
+	ConfigFile string
+	DBDir      string
+}
+
+var (
+	postgresDriver = []string{"github.com/lib/pq"}
+	sqliteDriver   = []string{"github.com/mattn/go-sqlite3"}
 )
 
 // ValidateModuleName checks if the provided module name is valid.
@@ -141,6 +153,64 @@ func EnsureGitignore(dir string) error {
 	return nil
 }
 
+// GetConfigPaths returns the necessary paths for configuration
+func GetConfigPaths(currentDir string) ConfigPaths {
+	return ConfigPaths{
+		ConfigDir:  filepath.Join(currentDir, "jotl"),
+		ConfigFile: filepath.Join(currentDir, "jotl", "config.yaml"),
+		DBDir:      filepath.Join(currentDir, "jotl", "db"),
+	}
+}
+
+// InstallDatabaseDrivers installs the specified database driver package using the `go get` command.
+// Supported database drivers are "postgres" and "sqlite".
+func InstallDatabaseDrivers(dbDriver string) error {
+	var driverPackage string
+
+	switch dbDriver {
+	case "postgres":
+		driverPackage = sqliteDriver[0]
+	case "sqlite":
+		driverPackage = postgresDriver[0]
+	default:
+		return fmt.Errorf("unsupported database driver: %s", dbDriver)
+	}
+
+	if err := ExecuteCmd("go", []string{"get", "-u", driverPackage}, ""); err != nil {
+		return fmt.Errorf("failed to install database driver %s: %w", driverPackage, err)
+	}
+
+	return nil
+}
+
+// CreateDatabase sets up the database for the jotl project based on the specified driver.
+// For SQLite, it creates a database file in the jotl directory.
+// For PostgreSQL, it assumes the database is managed externally and does not create any files.
+func CreateDatabase(currentDir string, dbDriver string) error {
+	paths := GetConfigPaths(currentDir)
+
+	switch dbDriver {
+	case "sqlite":
+		// Create SQLite database file
+		dbPath := filepath.Join(paths.DBDir, "jotl.db")
+		if _, err := os.Create(dbPath); err != nil {
+			return fmt.Errorf("failed to create SQLite database file: %w", err)
+		}
+	case "postgres":
+		// For PostgreSQL, we don't need to create any db file
+		// The connection string will be used when connecting to the database
+		// Touch docker-compose.yml for the postgres
+		config := config.DefaultPostgresConfig()
+		if err := config.CreateDockerCompose(currentDir, config); err != nil {
+			return fmt.Errorf("failed to create docker-compose configuration: %w", err)
+		}
+	default:
+		return fmt.Errorf("unsupported database driver: %s", dbDriver)
+	}
+
+	return nil
+}
+
 // InitializeJotlDirectory creates the necessary directory structure and files for jotl.
 // It creates the following structure:
 // currentDir/
@@ -150,38 +220,71 @@ func EnsureGitignore(dir string) error {
 //	    		│   ├── .env
 //	    		│   └── jotl.db
 //	    		└── jotl.config.yaml
-func InitializeJotlDirectory(currentDir string) error {
-	jotlDir := filepath.Join(currentDir, "jotl")
-	dbDir := filepath.Join(jotlDir, "db")
+//
+// This structure is exclusive of postgres driver
+func InitializeJotlDirectory(currentDir, dbDriver string) error {
+	paths := GetConfigPaths(currentDir)
 
-	// Create jotl and db directories
-	if err := os.MkdirAll(dbDir, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create directories: %w", err)
+	// Create jotl directory
+	if err := os.MkdirAll(paths.ConfigDir, 0755); err != nil {
+		return fmt.Errorf("failed to create jotl directory: %w", err)
 	}
 
-	// List of files to create with their respective paths
-	filesToCreate := []string{
-		filepath.Join(jotlDir, "jotl.config.yaml"),
-		filepath.Join(dbDir, ".env"),
-		filepath.Join(dbDir, "jotl.db"),
-	}
-
-	// Create each file in the list
-	for _, filePath := range filesToCreate {
-		if err := createFile(filePath); err != nil {
-			return err
+	// Create db directory for `sqlite`
+	if dbDriver != "postgres" {
+		if err := os.MkdirAll(paths.DBDir, 0755); err != nil {
+			return fmt.Errorf("failed to create db directory: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// createFile creates an empty file at the specified path.
-func createFile(filePath string) error {
-	file, err := os.Create(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to create file %s: %w", filePath, err)
+// IsJotlInitialized checks whether a jotl project has been initialized already.
+// It returns true if the jotl directory and its necessary files exist.
+func IsJotlInitialized(currentDir string) bool {
+	paths := GetConfigPaths(currentDir)
+
+	// List of files to check
+	filesToCheck := []string{
+		paths.ConfigFile,
+		paths.ConfigFile,
+		paths.DBDir,
 	}
-	defer file.Close()
+
+	// Check if each file exists
+	for _, filePath := range filesToCheck {
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			return false
+		}
+	}
+
+	return true
+}
+
+const envTemplate = `# Jotl is a modern CLI tool designed to streamline log management 
+# for developers like you.
+# Please consider starring the repo if you find it useful: https://github.com/ebarthur/jotl
+
+DB_CONNECTION_STRING=%s
+
+# Application Configuration (This is read-only)
+APP_NAME=%s
+`
+
+// CreateEnvFile creates a .env file with the configuration
+func CreateEnvFile(currentDir string, cfg *config.JotlConfig) error {
+	envPath := GetConfigPaths(currentDir).ConfigDir + "/.env"
+
+	envContent := fmt.Sprintf(
+		envTemplate,
+		cfg.Database.Path,
+		cfg.Project.Name,
+	)
+
+	if err := os.WriteFile(envPath, []byte(envContent), 0644); err != nil {
+		return fmt.Errorf("failed to create .env file: %w", err)
+	}
+
 	return nil
 }

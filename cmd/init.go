@@ -13,6 +13,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/ebarthur/jotl/cmd/config"
 	"github.com/ebarthur/jotl/cmd/flags"
 	"github.com/ebarthur/jotl/cmd/program"
 	"github.com/ebarthur/jotl/cmd/steps"
@@ -35,9 +36,14 @@ const logo = `
 `
 
 var (
-	logoStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#01FAC6")).Bold(true)
-	tipMsgStyle = lipgloss.NewStyle().PaddingLeft(1).Foreground(lipgloss.Color("190")).Italic(true)
-	// endingMsgStyle = lipgloss.NewStyle().PaddingLeft(1).Foreground(lipgloss.Color("170")).Bold(true)
+	logoStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#01FAC6")).Bold(true)
+	tipMsgStyle    = lipgloss.NewStyle().PaddingLeft(1).Foreground(lipgloss.Color("190")).Italic(true)
+	endingMsgStyle = lipgloss.NewStyle().PaddingLeft(1).Foreground(lipgloss.Color("170")).Bold(true)
+)
+
+var (
+	sqlFilePath    = []string{"file:./db/jotl.db"}
+	postgresDBPath = []string{"postgres://jotl:jotl_password@localhost:5432/jotl?sslmode=disable"}
 )
 
 func init() {
@@ -75,7 +81,7 @@ directory where you want to initialize your project.`,
 		flagName := cmd.Flag("name").Value.String()
 
 		if flagName != "" && !utils.ValidateModuleName(flagName) {
-			err = fmt.Errorf("'%s' is not a valid module name. Please choose a different name", flagName)
+			err = fmt.Errorf("'%s' is not a valid project name. Please choose a different name", flagName)
 			cobra.CheckErr(textinput.CreateErrorInputModel(err).Err())
 		}
 
@@ -102,9 +108,20 @@ directory where you want to initialize your project.`,
 		steps := steps.InitSteps(flagDBDriver, flagLogLevel)
 		fmt.Printf("%s\n", logoStyle.Render(logo))
 
+		currentWorkingDir, err := os.Getwd()
+		if err != nil {
+			log.Printf("could not get current working directory: %v", err)
+			cobra.CheckErr(textinput.CreateErrorInputModel(err).Err())
+		}
+
+		if utils.IsJotlInitialized(currentWorkingDir) {
+			fmt.Println(endingMsgStyle.Render("Jotl is already initialized in project directory! :)\n"))
+			return
+		}
+
 		if project.ProjectName == "" {
 			isInteractive = true
-			tprogram := tea.NewProgram(textinput.InitialTextInputModel(options.ProjectName, "Name your Jotl project.", project)) // personalize header using git config
+			tprogram := tea.NewProgram(textinput.InitialTextInputModel(options.ProjectName, "Name your Jotl project.", project))
 			if _, err := tprogram.Run(); err != nil {
 				log.Printf("Name of project contains an error: %v", err)
 				cobra.CheckErr(textinput.CreateErrorInputModel(err).Err())
@@ -117,7 +134,6 @@ directory where you want to initialize your project.`,
 
 			project.ExitCLI(tprogram)
 
-			// TODO: Set config name
 			project.ProjectName = options.ProjectName.Output
 			err := cmd.Flag("name").Value.Set(project.ProjectName)
 			if err != nil {
@@ -175,13 +191,12 @@ directory where you want to initialize your project.`,
 			if err != nil {
 				log.Fatal("failed to set the git flag value", err)
 			}
+
+			if !gitEnabled {
+				fmt.Println(tipMsgStyle.Render("Tip: Consider adding the /jotl directory to your .gitignore to avoid pushing it to your repository."))
+			}
 		}
 
-		currentWorkingDir, err := os.Getwd()
-		if err != nil {
-			log.Printf("could not get current working directory: %v", err)
-			cobra.CheckErr(textinput.CreateErrorInputModel(err).Err())
-		}
 		project.AbsolutePath = currentWorkingDir
 
 		spinner := tea.NewProgram(spinner.InitialModelNew())
@@ -205,9 +220,17 @@ directory where you want to initialize your project.`,
 			}
 		}()
 
-		// []: Work on this, refactor (this is just a test run for CreateJotlProject)
-		// Also handle when a user tries to initialize a project
-		err = project.CreateJotlProject()
+		var dbString string
+		if project.DBDriver == "sqlite" {
+			dbString = sqlFilePath[0]
+		} else {
+			dbString = postgresDBPath[0]
+		}
+
+		config := config.NewConfig(string(project.ProjectName), string(project.LogLevel), dbString)
+
+		err = project.CreateJotlProject(currentWorkingDir, *config)
+
 		if err != nil {
 			if releaseErr := spinner.ReleaseTerminal(); releaseErr != nil {
 				log.Printf("Problem releasing terminal: %v", releaseErr)
@@ -215,6 +238,16 @@ directory where you want to initialize your project.`,
 			log.Printf("Problem creating files for project. %v", err)
 			cobra.CheckErr(textinput.CreateErrorInputModel(err).Err())
 		}
+
+		fmt.Println(endingMsgStyle.Render("Successfully initialized Jotl project"))
+		fmt.Println(endingMsgStyle.Render("Next steps:"))
+
+		if project.DBDriver == "postgres" {
+			fmt.Println(endingMsgStyle.Render("Created docker-compose.yml for PostgreSQL"))
+			fmt.Println(endingMsgStyle.Render("To start the database, run: `docker-compose up -d`"))
+		}
+
+		fmt.Println(tipMsgStyle.Render("• Run `jotl dev --watch` to start logging now!"))
 
 		if isInteractive {
 			nonInteractiveCommand := utils.NonInteractiveCommand(cmd.Use, cmd.Flags())

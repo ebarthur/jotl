@@ -36,6 +36,8 @@ func (g *Git) Set(value string) error {
 	return fmt.Errorf("Git flag. Allowed values: true, false")
 }
 
+// IsGitEnabled checks if the Git feature is enabled.
+// It returns true if Git is enabled, otherwise false.
 func (g *Git) IsGitEnabled() bool {
 	return bool(*g)
 }

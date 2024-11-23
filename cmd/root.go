@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const lngMsg = (`Jotl is a versatile CLI tool designed to streamline log management for developers by logging console outputs into an SQLite database. 
+const lngMsg = (`Jotl is a versatile CLI tool designed to streamline log management for developers by logging console outputs into a local database. 
 
 Jotl comes packed with powerful features:
 - A **studio**, which provides an interactive web-based UI for log management.
