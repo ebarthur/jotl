@@ -2,6 +2,7 @@ package spinner
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -49,12 +50,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m model) View() string {
+var messages = []string{
+	"Initializing project...",
+	"Setting up environment...",
+	"Loading dependencies...",
+	"Almost done...",
+}
 
+func (m model) View() string {
 	if m.err != nil {
 		return m.err.Error()
 	}
-	str := fmt.Sprintf("%s Preparing...", m.spinner.View())
+
+	elapsed := time.Now().Unix() % int64(len(messages)*3)
+	messageIndex := elapsed / 3
+	str := fmt.Sprintf("%s %s", m.spinner.View(), messages[messageIndex])
+
 	if m.quitting {
 		return str + "\n"
 	}
