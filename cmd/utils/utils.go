@@ -13,6 +13,16 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const envTemplate = `# Jotl is a modern CLI tool designed to streamline log management 
+# for developers like you.
+# Please consider starring the repo if you find it useful: https://github.com/ebarthur/jotl
+
+DB_CONNECTION_STRING=%s
+
+# Application Configuration (This is read-only)
+APP_NAME=%s
+`
+
 type ConfigPaths struct {
 	ConfigDir  string
 	ConfigFile string
@@ -23,6 +33,15 @@ var (
 	postgresDriver = []string{"github.com/lib/pq"}
 	sqliteDriver   = []string{"github.com/mattn/go-sqlite3"}
 )
+
+// GetConfigPaths returns the necessary paths for configuration
+func GetConfigPaths(currentDir string) ConfigPaths {
+	return ConfigPaths{
+		ConfigDir:  filepath.Join(currentDir, "jotl"),
+		ConfigFile: filepath.Join(currentDir, "jotl", "config.yaml"),
+		DBDir:      filepath.Join(currentDir, "jotl", "db"),
+	}
+}
 
 // ValidateModuleName checks if the provided module name is valid.
 // A valid module name can contain alphanumeric characters, underscores,
@@ -153,15 +172,6 @@ func EnsureGitignore(dir string) error {
 	return nil
 }
 
-// GetConfigPaths returns the necessary paths for configuration
-func GetConfigPaths(currentDir string) ConfigPaths {
-	return ConfigPaths{
-		ConfigDir:  filepath.Join(currentDir, "jotl"),
-		ConfigFile: filepath.Join(currentDir, "jotl", "config.yaml"),
-		DBDir:      filepath.Join(currentDir, "jotl", "db"),
-	}
-}
-
 // InstallDatabaseDrivers installs the specified database driver package using the `go get` command.
 // Supported database drivers are "postgres" and "sqlite".
 func InstallDatabaseDrivers(dbDriver string) error {
@@ -261,16 +271,6 @@ func IsJotlInitialized(currentDir string) bool {
 
 	return true
 }
-
-const envTemplate = `# Jotl is a modern CLI tool designed to streamline log management 
-# for developers like you.
-# Please consider starring the repo if you find it useful: https://github.com/ebarthur/jotl
-
-DB_CONNECTION_STRING=%s
-
-# Application Configuration (This is read-only)
-APP_NAME=%s
-`
 
 // CreateEnvFile creates a .env file with the configuration
 func CreateEnvFile(currentDir string, cfg *config.JotlConfig) error {
