@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/charmbracelet/glamour"
+	"github.com/ebarthur/jotl/cmd/flags"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +22,7 @@ and have a valid database connection configured in the jotl directory.`)
 
 var studioCommand = &cobra.Command{
 	Use:   "studio",
-	Short: "Start logging console output to database with optional real-time display",
+	Short: "Start a local web server to view logs",
 	Long: func() string {
 		out, _ := glamour.Render(lngMessage, "dark")
 		return out
@@ -33,8 +34,12 @@ var studioCommand = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(studioCommand)
-	studioCommand.Flags().IntVarP(&port, "port", "p", 8080, "Port to run the dashboard server")
-}
+	var port flags.Port
 
-var port int
+	studioCommand.Flags().VarP(&port, "port", "p", "Port to run the studio dashboard (default: 8080)")
+
+	// Set default port
+	port.Set("8080")
+
+	rootCmd.AddCommand(studioCommand)
+}

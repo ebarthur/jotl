@@ -1,11 +1,22 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/charmbracelet/glamour"
+	"github.com/ebarthur/jotl/cmd/config"
+	"github.com/ebarthur/jotl/cmd/db"
+	"github.com/ebarthur/jotl/cmd/logs"
+	t "github.com/ebarthur/jotl/cmd/types"
+	"github.com/ebarthur/jotl/cmd/ui/tui"
+	"github.com/ebarthur/jotl/cmd/utils"
 	"github.com/spf13/cobra"
 )
 
-const longMsg = (`The dev command starts the core logging functionality of Jotl.
+const longMsg = `The dev command starts the core logging functionality of Jotl.
 
 It captures console output and asynchronously logs all output into the configured database.
 When running, it will:
@@ -16,7 +27,12 @@ When running, it will:
 For npm/node projects, add to your package.json scripts:
 "dev": "jotl dev --watch & npm run dev"
 "start": "jotl dev & npm start"
-`)
+`
+
+func init() {
+	rootCmd.AddCommand(devCommand)
+	devCommand.Flags().BoolP("watch", "w", false, "Open TUI dashboard for real-time logging")
+}
 
 var devCommand = &cobra.Command{
 	Use:   "dev",
@@ -25,13 +41,72 @@ var devCommand = &cobra.Command{
 		out, _ := glamour.Render(longMsg, "dark")
 		return out
 	}(),
-
 	Run: func(cmd *cobra.Command, args []string) {
-		//
+		currentDir, err := os.Getwd()
+		if err != nil {
+			fmt.Println("Failed to get the current directory:", err)
+			return
+		}
+
+		flagWatch, _ := cmd.Flags().GetBool("watch")
+
+		if !utils.IsJotlInitialized(currentDir) {
+			fmt.Printf("%s\n", logoStyle.Render(logo))
+			fmt.Println(endingMsgStyle.Render("\nYou need to initialize a Jotl project first. Run `jotl init` on your project root directory!"))
+
+			return
+		}
+
+		userConfig, err := config.LoadConfig(currentDir)
+		if err != nil {
+			fmt.Printf("%s\n", logoStyle.Render(logo))
+			fmt.Println(endingMsgStyle.Render("\nOops, there is something wrong with your jotl.config.yaml. Verify config and try again."))
+			// put link to docs
+			return
+		}
+
+		logConfig := &t.LogEntry{
+			Level:       string(userConfig.Logging.Level),
+			ServiceName: userConfig.Project.Name,
+			Environment: utils.GetDevEnvironment(),
+		}
+
+		dbPath := utils.GetConfigPaths(currentDir).DBDir + "/jotl.db"
+
+		// Initialize the database connection
+		logsDB, err := db.NewLogsDB(dbPath)
+		if err != nil {
+			fmt.Println("Failed to connect to the database. Verify your database configuration and try again.")
+			return
+		}
+
+		// Initialize the LogStreamer
+		logStreamer := logs.NewLogStreamer(logsDB, logConfig)
+
+		if flagWatch {
+			tui.ShowDashboard(logStreamer, userConfig)
+		} else {
+			fmt.Printf("%s\n", logoStyle.Render(logo))
+
+			fmt.Println(endingMsgStyle.Render("Silently logging to your database. Happy hacking!\n"))
+			fmt.Println(tipMsgStyle.Render("Tip: Run `jotl dev --watch` to open an interactive TUI dashboard"))
+		}
+
+		// Redirect stdout and stderr before starting streamer
+		// This way we are sure to catch any log before starting logger(streamer)
+		err = logStreamer.RedirectStd(userConfig)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		logStreamer.Start()
+		defer logStreamer.Stop()
+
+		// Use a termination signal to exit gracefully
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		fmt.Println(endingMsgStyle.Render("\nStopping Jotl log stream :("))
+		<-c // Wait for interrupt/termination signal
+
 	},
-}
-
-func init() {
-	rootCmd.AddCommand(devCommand)
-
 }

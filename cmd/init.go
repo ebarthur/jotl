@@ -117,6 +117,8 @@ directory where you want to initialize your project.`,
 		if utils.IsJotlInitialized(currentWorkingDir) {
 			fmt.Println(endingMsgStyle.Render("Jotl is already initialized in project directory! :)\n"))
 			return
+		} else {
+
 		}
 
 		if project.ProjectName == "" {
@@ -235,18 +237,14 @@ directory where you want to initialize your project.`,
 			if releaseErr := spinner.ReleaseTerminal(); releaseErr != nil {
 				log.Printf("Problem releasing terminal: %v", releaseErr)
 			}
-			log.Printf("Problem creating files for project. %v", err)
+			_ = utils.DeleteJotlOnFail(currentWorkingDir)
+			fmt.Println(endingMsgStyle.Render("This must be strange to you. It is strange to us too. Make sure you have a good internet connection and try `jotl init` once again."))
+
+			// []: send error data for debugging
 			cobra.CheckErr(textinput.CreateErrorInputModel(err).Err())
 		}
 
-		fmt.Println(endingMsgStyle.Render("Successfully initialized Jotl project"))
-		fmt.Println(endingMsgStyle.Render("Next steps:"))
-
-		if project.DBDriver == "postgres" {
-			fmt.Println(endingMsgStyle.Render("Created docker-compose.yml for PostgreSQL"))
-			fmt.Println(endingMsgStyle.Render("To start the database, run: `docker-compose up -d`"))
-		}
-
+		fmt.Println(endingMsgStyle.Render("\nNext steps:"))
 		fmt.Println(tipMsgStyle.Render("• Run `jotl dev --watch` to start logging now!"))
 
 		if isInteractive {

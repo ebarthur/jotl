@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/ebarthur/jotl/cmd/config"
+	"github.com/ebarthur/jotl/cmd/db"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/pflag"
 )
 
@@ -195,17 +197,19 @@ func InstallDatabaseDrivers(dbDriver string) error {
 
 // CreateDatabase sets up the database for the jotl project based on the specified driver.
 // For SQLite, it creates a database file in the jotl directory.
-// For PostgreSQL, it assumes the database is managed externally and does not create any files.
+// For PostgreSQL, it assumes the database is managed externally and does not create any files (well except for a docker-compose.yaml).
 func CreateDatabase(currentDir string, dbDriver string) error {
-	paths := GetConfigPaths(currentDir)
 
 	switch dbDriver {
 	case "sqlite":
-		// Create SQLite database file
-		dbPath := filepath.Join(paths.DBDir, "jotl.db")
-		if _, err := os.Create(dbPath); err != nil {
-			return fmt.Errorf("failed to create SQLite database file: %w", err)
+		configPaths := GetConfigPaths(currentDir)
+		sqliteDB := configPaths.DBDir + "/jotl.db"
+
+		_, err := db.NewLogsDB(sqliteDB)
+		if err != nil {
+			return fmt.Errorf("failed to create sqlite database: %w", err)
 		}
+
 	case "postgres":
 		// For PostgreSQL, we don't need to create any db file
 		// The connection string will be used when connecting to the database
@@ -223,7 +227,7 @@ func CreateDatabase(currentDir string, dbDriver string) error {
 
 // InitializeJotlDirectory creates the necessary directory structure and files for jotl.
 // It creates the following structure:
-// currentDir/
+// root directory/
 //
 //			└── jotl/
 //	    		├── db/
@@ -250,26 +254,58 @@ func InitializeJotlDirectory(currentDir, dbDriver string) error {
 	return nil
 }
 
-// IsJotlInitialized checks whether a jotl project has been initialized already.
+// IsJotlInitialized checks whether a jotl project has been initialized already in the directory tree.
 // It returns true if the jotl directory and its necessary files exist.
-func IsJotlInitialized(currentDir string) bool {
-	paths := GetConfigPaths(currentDir)
-
-	// List of files to check
-	filesToCheck := []string{
-		paths.ConfigFile,
-		paths.ConfigFile,
-		paths.DBDir,
+func IsJotlInitialized(startDir string) bool {
+	// Directories to skip for performance
+	skipDirs := map[string]bool{
+		".git":         true,
+		"node_modules": true,
+		"vendor":       true,
+		"dist":         true,
+		"build":        true,
 	}
 
-	// Check if each file exists
-	for _, filePath := range filesToCheck {
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			return false
+	for {
+		// Read all directory entries
+		entries, err := os.ReadDir(startDir)
+		if err != nil {
+			break
 		}
+
+		// Run a loop to find /jotl and do validation checks
+		for _, entry := range entries {
+			if entry.IsDir() {
+				if skipDirs[entry.Name()] {
+					continue
+				}
+
+				// Check if this is the "jotl" directory
+				if entry.Name() == "jotl" {
+					paths := GetConfigPaths(startDir)
+
+					// Verify it's a valid jotl project
+					if _, err := os.Stat(paths.ConfigDir); err == nil {
+
+						if _, err := os.Stat(paths.ConfigFile); err == nil {
+							return true
+						} else {
+						}
+					} else {
+					}
+				}
+			}
+		}
+
+		// Move up one directory
+		parentDir := filepath.Dir(startDir)
+		if parentDir == startDir { // Reached root directory
+			break
+		}
+		startDir = parentDir
 	}
 
-	return true
+	return false
 }
 
 // CreateEnvFile creates a .env file with the configuration
@@ -287,4 +323,45 @@ func CreateEnvFile(currentDir string, cfg *config.JotlConfig) error {
 	}
 
 	return nil
+}
+
+// DeleteJotlOnFail deletes the Jotl configuration directory if an error occurs.
+func DeleteJotlOnFail(currentDir string) error {
+	paths := GetConfigPaths(currentDir)
+	if err := os.RemoveAll(paths.ConfigDir); err != nil {
+		return fmt.Errorf("failed to delete jotl directory: %w", err)
+	}
+	return nil
+}
+
+// GetDevEnvironment scans the project directory to detect the language server
+func GetDevEnvironment() string {
+	var devEnv string
+
+	filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() {
+			switch filepath.Base(path) {
+			case "go.mod":
+				devEnv = "go"
+				return filepath.SkipDir
+			case "package.json":
+				devEnv = "node"
+				return filepath.SkipDir
+			case "requirements.txt":
+				devEnv = "python"
+				return filepath.SkipDir
+			}
+		}
+		return nil
+	})
+
+	if devEnv == "" {
+		devEnv = "development"
+	}
+
+	return devEnv
 }

@@ -66,8 +66,5 @@ func (m model) View() string {
 	messageIndex := elapsed / 3
 	str := fmt.Sprintf("%s %s", m.spinner.View(), messages[messageIndex])
 
-	if m.quitting {
-		return str + "\n"
-	}
-	return str
+	return str + "\n"
 }
