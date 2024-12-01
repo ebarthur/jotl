@@ -4,10 +4,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	t "github.com/ebarthur/jotl/cmd/types"
+	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -34,15 +37,31 @@ func (l *LogsDB) TableExists(name string) bool {
 }
 
 func (l *LogsDB) CreateTable() error {
-	_, err := l.db.Exec(`CREATE TABLE IF NOT EXISTS logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        level TEXT NOT NULL,
-        environment TEXT,
-        service_name TEXT,
-        message TEXT NOT NULL,
-        metadata TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`)
+	var createTableQuery string
+
+	if strings.HasPrefix(l.dbpath, "postgres://") || strings.HasPrefix(l.dbpath, "postgresql://") {
+		createTableQuery = `CREATE TABLE IF NOT EXISTS logs (
+					id SERIAL PRIMARY KEY,
+					level TEXT NOT NULL,
+					environment TEXT,
+					service_name TEXT,
+					message TEXT NOT NULL,
+					metadata TEXT,
+					timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)`
+	} else {
+		createTableQuery = `CREATE TABLE IF NOT EXISTS logs (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					level TEXT NOT NULL,
+					environment TEXT,
+					service_name TEXT,
+					message TEXT NOT NULL,
+					metadata TEXT,
+					timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+			)`
+	}
+
+	_, err := l.db.Exec(createTableQuery)
 	return err
 }
 
@@ -98,18 +117,38 @@ func (l *LogsDB) GetLogs() ([]t.LogEntry, error) {
 }
 
 func NewLogsDB(dbpath string) (*LogsDB, error) {
-	if err := InitLogsDir(filepath.Dir(dbpath)); err != nil {
-		return nil, fmt.Errorf("failed to create directory for logs database: %w", err)
-	}
+	var db *sql.DB
+	var err error
 
-	db, err := sql.Open("sqlite3", dbpath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open SQLite database: %w", err)
+	log.Printf("Creating new LogsDB with dbpath: %s", dbpath)
+
+	if strings.HasPrefix(dbpath, "postgres://") || strings.HasPrefix(dbpath, "postgresql://") {
+		log.Println("Detected PostgreSQL database")
+		db, err = sql.Open("postgres", dbpath)
+		if err != nil {
+			log.Printf("Failed to open PostgreSQL database: %v", err)
+			return nil, fmt.Errorf("failed to open PostgreSQL database: %w", err)
+		}
+	} else {
+		log.Println("Detected SQLite database")
+		if err := InitLogsDir(filepath.Dir(dbpath)); err != nil {
+			log.Printf("Failed to create directory for logs database: %v", err)
+			return nil, fmt.Errorf("failed to create directory for logs database: %w", err)
+		}
+
+		db, err = sql.Open("sqlite3", dbpath)
+		if err != nil {
+			log.Printf("Failed to open SQLite database: %v", err)
+			return nil, fmt.Errorf("failed to open SQLite database: %w", err)
+		}
 	}
 
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
+		log.Printf("Failed to connect to database: %v", err)
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
+
+	log.Println("Successfully connected to the database")
 
 	logsDB := &LogsDB{
 		db:     db,
@@ -117,8 +156,35 @@ func NewLogsDB(dbpath string) (*LogsDB, error) {
 	}
 
 	if err := logsDB.CreateTable(); err != nil {
+		log.Printf("Failed to create logs table: %v", err)
 		return nil, fmt.Errorf("failed to create logs table: %w", err)
 	}
 
+	log.Println("Successfully created logs table")
+
 	return logsDB, nil
+}
+
+func ConnectDatabase(connStr string) (*sql.DB, error) {
+	var driverName string
+
+	if strings.HasPrefix(connStr, "postgres://") {
+		driverName = "postgres"
+	} else if strings.HasPrefix(connStr, "file://") {
+		driverName = "sqlite3"
+		connStr = strings.TrimPrefix(connStr, "file://")
+	} else {
+		return nil, fmt.Errorf("unsupported database type")
+	}
+
+	db, err := sql.Open(driverName, connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to the database: %w", err)
+	}
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping the database: %w", err)
+	}
+
+	return db, nil
 }

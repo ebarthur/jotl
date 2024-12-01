@@ -85,18 +85,23 @@ var devCommand = &cobra.Command{
 			return
 		}
 
-		logConfig := &t.LogEntry{
-			Level:       string(userConfig.Logging.Level),
-			ServiceName: userConfig.Project.Name,
-			Environment: utils.GetDevEnvironment(),
+		var dbPath string
+		if userConfig.Database.Path != "" && userConfig.Database.Path != sqlFilePath[0] {
+			dbPath = userConfig.Database.Path
+		} else {
+			dbPath = utils.GetConfigPaths(currentDir).DBDir + "/jotl.db"
 		}
-
-		dbPath := utils.GetConfigPaths(currentDir).DBDir + "/jotl.db"
 
 		logsDB, err := db.NewLogsDB(dbPath)
 		if err != nil {
 			fmt.Println("Failed to connect to the database. Verify your database configuration and try again.")
 			return
+		}
+
+		logConfig := &t.LogEntry{
+			Level:       string(userConfig.Logging.Level),
+			ServiceName: userConfig.Project.Name,
+			Environment: utils.GetDevEnvironment(),
 		}
 
 		logStreamer := logs.NewLogStreamer(logsDB, logConfig)

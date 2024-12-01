@@ -64,7 +64,8 @@ func getJotlVersion() string {
 }
 
 // versionCmd represents the version command
-var versionCmd = &cobra.Command{
+var versionCmd = &cobra.Command{ // Parse template
+
 	Use:   "version",
 	Short: "Display application version information.",
 	Long: `

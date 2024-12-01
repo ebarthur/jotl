@@ -189,9 +189,9 @@ func InstallDatabaseDrivers(dbDriver string) error {
 
 	switch dbDriver {
 	case "postgres":
-		driverPackage = sqliteDriver[0]
-	case "sqlite":
 		driverPackage = postgresDriver[0]
+	case "sqlite":
+		driverPackage = sqliteDriver[0]
 	default:
 		return fmt.Errorf("unsupported database driver: %s", dbDriver)
 	}
