@@ -15,11 +15,11 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/ebarthur/jotl/cmd/config"
 	"github.com/ebarthur/jotl/cmd/db"
 	"github.com/ebarthur/jotl/cmd/flags"
+	"github.com/gofrs/flock"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/pflag"
 )
@@ -378,37 +378,38 @@ func GetDevEnvironment() string {
 	return devEnv
 }
 
-// acquireLock attempts to create and lock a session lock file
-func AcquireLock() (*os.File, error) {
+// AcquireLock attempts to create and lock a session lock file
+func AcquireLock() (*flock.Flock, error) {
+	// Define the lock file path in the temporary directory
 	lockFilePath := filepath.Join(os.TempDir(), lockFileName)
 
-	file, err := os.OpenFile(lockFilePath, os.O_CREATE|os.O_RDWR, 0644)
+	// Create a flock instance
+	fileLock := flock.New(lockFilePath)
+
+	// Attempt to acquire an exclusive, non-blocking lock
+	locked, err := fileLock.TryLock()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create lock file: %w", err)
+		return nil, fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	if !locked {
+		return nil, errors.New("another session of 'jotl dev' is already running")
 	}
 
-	// Lock the file to prevent multiple instances
-	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return nil, errors.New("another session of 'jotl dev' is already running")
-		}
-		return nil, fmt.Errorf("failed to lock file: %w", err)
-	}
-
-	return file, nil
+	return fileLock, nil
 }
 
-// releaseLock releases and deletes the session lock file
-func ReleaseLock(file *os.File) error {
-	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_UN); err != nil {
-		return fmt.Errorf("failed to unlock file: %w", err)
+// ReleaseLock releases and deletes the session lock file
+func ReleaseLock(fl *flock.Flock) error {
+	// Release the lock
+	if err := fl.Unlock(); err != nil {
+		return fmt.Errorf("failed to release lock: %w", err)
 	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("failed to close lock file: %w", err)
-	}
-	if err := os.Remove(file.Name()); err != nil {
+
+	// Remove the lock file
+	if err := os.Remove(fl.Path()); err != nil {
 		return fmt.Errorf("failed to remove lock file: %w", err)
 	}
+
 	return nil
 }
 
