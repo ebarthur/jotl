@@ -2,17 +2,24 @@ package utils
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/ebarthur/jotl/cmd/config"
 	"github.com/ebarthur/jotl/cmd/db"
+	"github.com/ebarthur/jotl/cmd/flags"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/pflag"
 )
@@ -401,6 +408,72 @@ func ReleaseLock(file *os.File) error {
 	}
 	if err := os.Remove(file.Name()); err != nil {
 		return fmt.Errorf("failed to remove lock file: %w", err)
+	}
+	return nil
+}
+
+func FindAvailablePort(startPort int) string {
+	for port := startPort; port <= flags.MaxPort; port++ {
+		addr := fmt.Sprintf(":%d", port)
+		ln, err := net.Listen("tcp", addr)
+		if err == nil {
+			ln.Close()
+			return strconv.Itoa(port)
+		}
+	}
+	log.Fatal("No available ports found")
+	return ""
+}
+
+// parsePort converts a string port to an integer.
+func ParsePort(port string) int {
+	parsedPort, err := strconv.Atoi(port)
+	if err != nil {
+		log.Fatalf("Invalid port: %s", port)
+	}
+	return parsedPort
+}
+
+// openBrowser attempts to open the default web browser with the given URL.
+func OpenBrowser(url string) {
+	var err error
+
+	switch os := runtime.GOOS; os {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+
+	if err != nil {
+		log.Printf("Failed to open browser: %v", err)
+	}
+}
+
+func ServeConfig(port string) error {
+	configPort := ParsePort(port) + 1
+	addr := fmt.Sprintf(":%d", configPort)
+
+	http.HandleFunc("/cfg", func(w http.ResponseWriter, r *http.Request) {
+		currentDir, _ := os.Getwd()
+		cfg, err := config.LoadConfig(currentDir)
+		if err != nil {
+			http.Error(w, "Failed to load configuration", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(cfg); err != nil {
+			http.Error(w, "Failed to encode configuration", http.StatusInternalServerError)
+		}
+	})
+
+	if err := http.ListenAndServe(addr, nil); err != nil {
+		return fmt.Errorf("config server failed: %w", err)
 	}
 	return nil
 }

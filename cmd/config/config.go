@@ -48,7 +48,7 @@ type Logging struct {
 }
 
 type Dashboard struct {
-	Port        int    `yaml:"port" validate:"required"`
+	Port        string `yaml:"port" validate:"required"`
 	Theme       string `yaml:"theme" validate:"required"`
 	RefreshRate int    `yaml:"refreshRate" validate:"required"`
 }
@@ -78,7 +78,7 @@ func NewConfig(name, loglevel, dbPath string) *JotlConfig {
 			TimeFormat: DefaultTimeFormat,
 		},
 		Dashboard: Dashboard{
-			Port:        8080,
+			Port:        "8080",
 			Theme:       "system",
 			RefreshRate: DefaultRefreshRate,
 		},
