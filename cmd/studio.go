@@ -1,3 +1,7 @@
+/*
+Copyright © 2024 Ebenezer Arthur arthurebenezer@aol.com
+*/
+
 package cmd
 
 import (

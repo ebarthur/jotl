@@ -1,6 +1,7 @@
 /*
 Copyright © 2024 Ebenezer Arthur arthurebenezer@aol.com
 */
+
 package cmd
 
 import (
@@ -28,6 +29,10 @@ var rootCmd = &cobra.Command{
 		out, _ := glamour.Render(lngMsg, "dark")
 		return out
 	}(),
+
+	// Run: func(cmd *cobra.Command, args []string) {}
+	// Maybe move the version here as a flag instead of a command
+
 }
 
 func Execute() {

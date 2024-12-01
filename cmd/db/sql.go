@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,6 +53,21 @@ func (l *LogsDB) Insert(level, message, environment, serviceName, metadata strin
 		level, message, environment, serviceName, metadata,
 	)
 	return err
+}
+
+func (l *LogsDB) SaveLogEntry(logEntry t.LogEntry) error {
+	metadata, err := json.Marshal(logEntry.Metadata)
+	if err != nil {
+		return fmt.Errorf("unable to marshal metadata: %w", err)
+	}
+
+	return l.Insert(
+		logEntry.Level,
+		logEntry.Message,
+		logEntry.Environment,
+		logEntry.ServiceName,
+		string(metadata),
+	)
 }
 
 func (l *LogsDB) GetLogs() ([]t.LogEntry, error) {

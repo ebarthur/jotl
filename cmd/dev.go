@@ -1,7 +1,12 @@
+/*
+Copyright © 2024 Ebenezer Arthur arthurebenezer@aol.com
+*/
+
 package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -41,6 +46,7 @@ var devCommand = &cobra.Command{
 		out, _ := glamour.Render(longMsg, "dark")
 		return out
 	}(),
+
 	Run: func(cmd *cobra.Command, args []string) {
 		currentDir, err := os.Getwd()
 		if err != nil {
@@ -49,6 +55,20 @@ var devCommand = &cobra.Command{
 		}
 
 		flagWatch, _ := cmd.Flags().GetBool("watch")
+
+		// Prevent multiple sessions
+		lockFile, err := utils.AcquireLock()
+		if err != nil {
+			fmt.Printf("%s\n", logoStyle.Render(logo))
+			fmt.Println(endingMsgStyle.Render("\nAnother instance of `jotl dev` currently running :/"))
+			// See docs
+			return
+		}
+		defer func() {
+			if err := utils.ReleaseLock(lockFile); err != nil {
+				log.Printf("Failed to release lock: %v\n", err)
+			}
+		}()
 
 		if !utils.IsJotlInitialized(currentDir) {
 			fmt.Printf("%s\n", logoStyle.Render(logo))
@@ -90,6 +110,8 @@ var devCommand = &cobra.Command{
 
 			fmt.Println(endingMsgStyle.Render("Silently logging to your database. Happy hacking!\n"))
 			fmt.Println(tipMsgStyle.Render("Tip: Run `jotl dev --watch` to open an interactive TUI dashboard"))
+
+			fmt.Println(endingMsgStyle.Render("Press Ctrl+C to stop the Jotl log stream."))
 		}
 
 		// Redirect stdout and stderr before starting streamer
@@ -102,11 +124,11 @@ var devCommand = &cobra.Command{
 		logStreamer.Start()
 		defer logStreamer.Stop()
 
-		// Use a termination signal to exit gracefully
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-		fmt.Println(endingMsgStyle.Render("\nStopping Jotl log stream :("))
-		<-c // Wait for interrupt/termination signal
+		// Wait for termination signal
+		signalChannel := make(chan os.Signal, 1)
+		signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 
+		// Terminate
+		<-signalChannel
 	},
 }
