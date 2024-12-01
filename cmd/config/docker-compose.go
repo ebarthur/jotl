@@ -50,20 +50,17 @@ volumes:
 func (pc *PostgresConfig) CreateDockerCompose(currentDir string, config PostgresConfig) error {
 	dockerComposePath := filepath.Join(currentDir, "jotl", "docker-compose.yml")
 
-	// Parse template
 	tmpl, err := template.New("docker-compose").Parse(dockerComposeTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to parse docker-compose template: %w", err)
 	}
 
-	// Create file
 	f, err := os.Create(dockerComposePath)
 	if err != nil {
 		return fmt.Errorf("failed to create docker-compose.yml: %w", err)
 	}
 	defer f.Close()
 
-	// Execute template
 	if err := tmpl.Execute(f, config); err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
 	}

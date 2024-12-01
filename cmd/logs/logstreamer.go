@@ -40,22 +40,14 @@ func (ls *LogStreamer) parseLogEntry(message string) t.LogEntry {
 	// ANSI color escape sequence regex
 	var ansiColorRegex = regexp.MustCompile(`\x1b\[[0-9;]*[mz]`)
 
-	// Strip ANSI color codes
 	cleanMessage := ansiColorRegex.ReplaceAllString(message, "")
-
-	// Trim whitespace
 	cleanMessage = strings.TrimSpace(cleanMessage)
-
-	// Extract potential metadata
 	metadataMatch := ls.metadataRe.FindString(cleanMessage)
-
-	// Remove metadata from the original message
 	cleanMessage = ls.metadataRe.ReplaceAllString(cleanMessage, "")
 
-	// Initialize log entry
 	logEntry := t.LogEntry{
 		Message:  cleanMessage,
-		Level:    "", // Determine dynamically
+		Level:    "", // Determine dynamically ->
 		Metadata: make(map[string]interface{}),
 	}
 
@@ -102,7 +94,6 @@ func (ls *LogStreamer) Start() {
 		for {
 			select {
 			case logEntry := <-ls.logChan:
-				// Process log entry
 				err := ls.db.SaveLogEntry(logEntry)
 				if err != nil {
 					log.Printf("Failed to save log entry: %v", err)
@@ -114,7 +105,6 @@ func (ls *LogStreamer) Start() {
 	}()
 }
 
-// Stop stops streaming logs
 func (ls *LogStreamer) Stop() {
 	close(ls.stopChan)
 	ls.wg.Wait()
@@ -136,7 +126,6 @@ func (ls *LogStreamer) Log(entry t.LogEntry) {
 }
 
 func (ls *LogStreamer) RedirectStd(config *config.JotlConfig) error {
-	// Create pipes for stdout and stderr
 	stdoutReader, stdoutWriter, err := os.Pipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stdout pipe: %v", err)
@@ -146,7 +135,6 @@ func (ls *LogStreamer) RedirectStd(config *config.JotlConfig) error {
 		return fmt.Errorf("failed to create stderr pipe: %v", err)
 	}
 
-	// Redirect system stdout and stderr
 	origStdout := os.Stdout
 	origStderr := os.Stderr
 	os.Stdout = stdoutWriter
@@ -165,13 +153,10 @@ func (ls *LogStreamer) captureAndTeeLogs(reader io.Reader, originalOutput *os.Fi
 	for scanner.Scan() {
 		message := scanner.Text()
 
-		// Forward the log to the original terminal
 		fmt.Fprintln(originalOutput, message)
 
-		// Parse the log entry
 		logEntry := ls.parseLogEntry(message)
 
-		// Filter logs based on the user's configuration
 		if shouldLog(logEntry.Level, configLevel) {
 			ls.Log(logEntry)
 		}

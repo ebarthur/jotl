@@ -98,18 +98,15 @@ func (l *LogsDB) GetLogs() ([]t.LogEntry, error) {
 }
 
 func NewLogsDB(dbpath string) (*LogsDB, error) {
-	// Ensure the logs directory exists
 	if err := InitLogsDir(filepath.Dir(dbpath)); err != nil {
 		return nil, fmt.Errorf("failed to create directory for logs database: %w", err)
 	}
 
-	// Open the SQLite database file
 	db, err := sql.Open("sqlite3", dbpath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQLite database: %w", err)
 	}
 
-	// Verify connection by pinging the database
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
 	}
@@ -119,7 +116,6 @@ func NewLogsDB(dbpath string) (*LogsDB, error) {
 		dbpath: dbpath,
 	}
 
-	// Attempt to create the logs table
 	if err := logsDB.CreateTable(); err != nil {
 		return nil, fmt.Errorf("failed to create logs table: %w", err)
 	}

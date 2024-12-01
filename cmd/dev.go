@@ -56,7 +56,7 @@ var devCommand = &cobra.Command{
 
 		flagWatch, _ := cmd.Flags().GetBool("watch")
 
-		// Prevent multiple sessions
+		// This way we prevent user from running multiple instances of `jotl dev`
 		lockFile, err := utils.AcquireLock()
 		if err != nil {
 			fmt.Printf("%s\n", logoStyle.Render(logo))
@@ -93,14 +93,12 @@ var devCommand = &cobra.Command{
 
 		dbPath := utils.GetConfigPaths(currentDir).DBDir + "/jotl.db"
 
-		// Initialize the database connection
 		logsDB, err := db.NewLogsDB(dbPath)
 		if err != nil {
 			fmt.Println("Failed to connect to the database. Verify your database configuration and try again.")
 			return
 		}
 
-		// Initialize the LogStreamer
 		logStreamer := logs.NewLogStreamer(logsDB, logConfig)
 
 		if flagWatch {
@@ -114,8 +112,6 @@ var devCommand = &cobra.Command{
 			fmt.Println(endingMsgStyle.Render("Press Ctrl+C to stop the Jotl log stream."))
 		}
 
-		// Redirect stdout and stderr before starting streamer
-		// This way we are sure to catch any log before starting logger(streamer)
 		err = logStreamer.RedirectStd(userConfig)
 		if err != nil {
 			fmt.Println(err)
@@ -124,11 +120,9 @@ var devCommand = &cobra.Command{
 		logStreamer.Start()
 		defer logStreamer.Stop()
 
-		// Wait for termination signal
 		signalChannel := make(chan os.Signal, 1)
 		signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 
-		// Terminate
 		<-signalChannel
 	},
 }

@@ -154,7 +154,6 @@ func ExecuteCmd(name string, args []string, dir string) error {
 func EnsureGitignore(dir string) error {
 	gitignorePath := filepath.Join(dir, ".gitignore")
 
-	// Check if .gitignore file exists, create if it does not
 	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
 		file, err := os.Create(gitignorePath)
 		if err != nil {
@@ -163,15 +162,12 @@ func EnsureGitignore(dir string) error {
 		defer file.Close()
 	}
 
-	// Read the .gitignore file
 	content, err := os.ReadFile(gitignorePath)
 	if err != nil {
 		return err
 	}
 
-	// Check if /jotl is already ignored
 	if !strings.Contains(string(content), "/jotl") {
-		// Append /jotl to .gitignore
 		file, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
 			return err
@@ -251,12 +247,10 @@ func CreateDatabase(currentDir string, dbDriver string) error {
 func InitializeJotlDirectory(currentDir, dbDriver string) error {
 	paths := GetConfigPaths(currentDir)
 
-	// Create jotl directory
 	if err := os.MkdirAll(paths.ConfigDir, 0755); err != nil {
 		return fmt.Errorf("failed to create jotl directory: %w", err)
 	}
 
-	// Create db directory for `sqlite`
 	if dbDriver != "postgres" {
 		if err := os.MkdirAll(paths.DBDir, 0755); err != nil {
 			return fmt.Errorf("failed to create db directory: %w", err)
@@ -279,24 +273,20 @@ func IsJotlInitialized(startDir string) bool {
 	}
 
 	for {
-		// Read all directory entries
 		entries, err := os.ReadDir(startDir)
 		if err != nil {
 			break
 		}
 
-		// Run a loop to find /jotl and do validation checks
 		for _, entry := range entries {
 			if entry.IsDir() {
 				if skipDirs[entry.Name()] {
 					continue
 				}
 
-				// Check if this is the "jotl" directory
 				if entry.Name() == "jotl" {
 					paths := GetConfigPaths(startDir)
 
-					// Verify it's a valid jotl project
 					if _, err := os.Stat(paths.ConfigDir); err == nil {
 
 						if _, err := os.Stat(paths.ConfigFile); err == nil {
@@ -379,6 +369,7 @@ func GetDevEnvironment() string {
 }
 
 // AcquireLock attempts to create and lock a session lock file
+// This prevents multiple instances of `jotl dev`
 func AcquireLock() (*flock.Flock, error) {
 	// Define the lock file path in the temporary directory
 	lockFilePath := filepath.Join(os.TempDir(), lockFileName)
@@ -399,13 +390,12 @@ func AcquireLock() (*flock.Flock, error) {
 }
 
 // ReleaseLock releases and deletes the session lock file
+// We employ this when after we run a `jotl dev` instance
 func ReleaseLock(fl *flock.Flock) error {
-	// Release the lock
 	if err := fl.Unlock(); err != nil {
 		return fmt.Errorf("failed to release lock: %w", err)
 	}
 
-	// Remove the lock file
 	if err := os.Remove(fl.Path()); err != nil {
 		return fmt.Errorf("failed to remove lock file: %w", err)
 	}
@@ -413,6 +403,7 @@ func ReleaseLock(fl *flock.Flock) error {
 	return nil
 }
 
+// FindAvailablPort finds the perfect port for the web studio
 func FindAvailablePort(startPort int) string {
 	for port := startPort; port <= flags.MaxPort; port++ {
 		addr := fmt.Sprintf(":%d", port)
@@ -426,7 +417,7 @@ func FindAvailablePort(startPort int) string {
 	return ""
 }
 
-// parsePort converts a string port to an integer.
+// ParsePort converts a string port to an integer.
 func ParsePort(port string) int {
 	parsedPort, err := strconv.Atoi(port)
 	if err != nil {
@@ -435,7 +426,8 @@ func ParsePort(port string) int {
 	return parsedPort
 }
 
-// openBrowser attempts to open the default web browser with the given URL.
+// OpenBrowser attempts to open the default web browser with the given URL.
+// We use this to automatically open the web studio
 func OpenBrowser(url string) {
 	var err error
 
@@ -455,6 +447,8 @@ func OpenBrowser(url string) {
 	}
 }
 
+// User config is accessed in web studio by serving it on an endpoint
+// that the static app can access
 func ServeConfig(port string) error {
 	configPort := ParsePort(port) + 1
 	addr := fmt.Sprintf(":%d", configPort)

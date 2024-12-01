@@ -50,6 +50,13 @@ var studioCommand = &cobra.Command{
 		portFlag, _ := cmd.Flags().GetString("port")
 		currentDir, _ := os.Getwd()
 
+		if !utils.IsJotlInitialized(currentDir) {
+			fmt.Printf("%s\n", logoStyle.Render(logo))
+			fmt.Println(endingMsgStyle.Render("\nYou need to initialize a Jotl project first. Run `jotl init` on your project root directory!"))
+
+			return
+		}
+
 		if portFlag == "" {
 			cfg, err := config.LoadConfig(currentDir)
 			if err != nil {
@@ -63,7 +70,6 @@ var studioCommand = &cobra.Command{
 				port.Set("8080")
 			}
 		} else {
-			// Use the provided port flag
 			if err := port.Set(portFlag); err != nil {
 				fmt.Println(endingMsgStyle.Render("Invalid port provided. Using default port: 8080"))
 				port.Set("8080")
@@ -81,7 +87,6 @@ func init() {
 	rootCmd.AddCommand(studioCommand)
 }
 
-// startServer initializes and runs the HTTP server.
 func startServer(port string) {
 	go utils.ServeConfig(port)
 
@@ -112,7 +117,7 @@ func startServer(port string) {
 
 	link := "http://localhost:" + port
 	fmt.Printf("%s\n", logoStyle.Render(logo))
-	fmt.Println(tipMsgStyle.Render(fmt.Sprintf("Server starting on: %s", clickableLink(link))))
+	fmt.Println(tipMsgStyle.Render(fmt.Sprintf("Server starting on: %s", clickableLink(link)))) // change stule
 
 	go func() {
 		time.Sleep(2 * time.Second)
@@ -127,12 +132,11 @@ func startServer(port string) {
 	fmt.Println(endingMsgStyle.Render("Server stopped"))
 }
 
-// clickableLink makes a URL clickable in modern terminal emulators.
+// This makes the link clickable in the terminal (Though we automatically open the browser for the user)
 func clickableLink(url string) string {
 	return fmt.Sprintf("\033]8;;%s\033\\%s\033]8;;\033\\", url, url)
 }
 
-// gracefulShutdown handles shutdown signals and stops the server gracefully.
 func gracefulShutdown(apiServer *http.Server, done chan bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

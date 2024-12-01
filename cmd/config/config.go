@@ -9,10 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// LogLevel represents the severity level of log messages
 type LogLevel string
 
-// LogFormat represents the output format for log messages
 type LogFormat string
 
 const (
@@ -21,16 +19,13 @@ const (
 	Warn  LogLevel = "warn"  // Warning messages for potentially harmful situations
 	Error LogLevel = "error" // Error messages for serious problems
 
-	// Log Formats define how log messages are structured
-	Text LogFormat = "text" // Human-readable text format
+	Text LogFormat = "text"
 
 	// Default configuration values
 	DefaultVersion     = "1.0.0"   // Initial version number
 	DefaultTimeFormat  = "RFC3339" // Standard time format (Not in use right now)
 	DefaultRefreshRate = 5         // Dashboard refresh rate in seconds
 )
-
-// Project contains basic project identification and description
 
 type Project struct {
 	Name        string `yaml:"name" validate:"required"`
@@ -53,16 +48,14 @@ type Dashboard struct {
 	RefreshRate int    `yaml:"refreshRate" validate:"required"`
 }
 
-// JotlConfig is the root configuration structure containing all settings
 type JotlConfig struct {
-	Version   string    `yaml:"version" json:"version"`     // Configuration version
-	Project   Project   `yaml:"project" json:"project"`     // Project settings
-	Database  Database  `yaml:"database" json:"database"`   // Database settings
-	Logging   Logging   `yaml:"logging" json:"logging"`     // Logging settings
-	Dashboard Dashboard `yaml:"dashboard" json:"dashboard"` // Dashboard settings
+	Version   string    `yaml:"version" json:"version"`
+	Project   Project   `yaml:"project" json:"project"`
+	Database  Database  `yaml:"database" json:"database"`
+	Logging   Logging   `yaml:"logging" json:"logging"`
+	Dashboard Dashboard `yaml:"dashboard" json:"dashboard"`
 }
 
-// NewConfig creates a new configuration with default values.
 func NewConfig(name, loglevel, dbPath string) *JotlConfig {
 	return &JotlConfig{
 		Version: DefaultVersion,
@@ -110,13 +103,10 @@ func (c *JotlConfig) SaveConfig(path string) error {
 func LoadConfig(startDir string) (*JotlConfig, error) {
 
 	for {
-		// Construct the config file path
 		configFilePath := filepath.Join(startDir, "jotl", "config.yaml")
 
-		// Check if the file exists
 		if _, err := os.Stat(configFilePath); err == nil {
 
-			// Read and parse the configuration
 			data, err := os.ReadFile(configFilePath)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -127,7 +117,6 @@ func LoadConfig(startDir string) (*JotlConfig, error) {
 				return nil, fmt.Errorf("failed to parse config file: %w", err)
 			}
 
-			// Validate the configuration
 			validate := validator.New()
 			if err := validate.Struct(config); err != nil {
 				return nil, fmt.Errorf("config validation failed: %w", err)
@@ -136,7 +125,6 @@ func LoadConfig(startDir string) (*JotlConfig, error) {
 			return config, nil
 		}
 
-		// Move up one directory
 		parentDir := filepath.Dir(startDir)
 		if parentDir == startDir { // Reached root directory
 			break
@@ -144,11 +132,9 @@ func LoadConfig(startDir string) (*JotlConfig, error) {
 		startDir = parentDir
 	}
 
-	// If the loop exits without finding the config file
 	return nil, fmt.Errorf("config file not found in any parent directory")
 }
 
-// SetLogLevel updates the logging level if valid.
 func (c *JotlConfig) SetLogLevel(level string) error {
 	switch LogLevel(level) {
 	case Debug, Info, Warn, Error:
@@ -159,12 +145,10 @@ func (c *JotlConfig) SetLogLevel(level string) error {
 	}
 }
 
-// SetProjectName updates the project name.
 func (c *JotlConfig) SetProjectName(name string) {
 	c.Project.Name = name
 }
 
-// SetDescription updates the project description.
 func (c *JotlConfig) SetDescription(desc string) {
 	c.Project.Description = desc
 }
