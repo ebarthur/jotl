@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,35 +119,25 @@ func NewLogsDB(dbpath string) (*LogsDB, error) {
 	var db *sql.DB
 	var err error
 
-	log.Printf("Creating new LogsDB with dbpath: %s", dbpath)
-
 	if strings.HasPrefix(dbpath, "postgres://") || strings.HasPrefix(dbpath, "postgresql://") {
-		log.Println("Detected PostgreSQL database")
 		db, err = sql.Open("postgres", dbpath)
 		if err != nil {
-			log.Printf("Failed to open PostgreSQL database: %v", err)
 			return nil, fmt.Errorf("failed to open PostgreSQL database: %w", err)
 		}
 	} else {
-		log.Println("Detected SQLite database")
 		if err := InitLogsDir(filepath.Dir(dbpath)); err != nil {
-			log.Printf("Failed to create directory for logs database: %v", err)
 			return nil, fmt.Errorf("failed to create directory for logs database: %w", err)
 		}
 
 		db, err = sql.Open("sqlite3", dbpath)
 		if err != nil {
-			log.Printf("Failed to open SQLite database: %v", err)
 			return nil, fmt.Errorf("failed to open SQLite database: %w", err)
 		}
 	}
 
 	if err := db.Ping(); err != nil {
-		log.Printf("Failed to connect to database: %v", err)
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
-
-	log.Println("Successfully connected to the database")
 
 	logsDB := &LogsDB{
 		db:     db,
@@ -156,12 +145,8 @@ func NewLogsDB(dbpath string) (*LogsDB, error) {
 	}
 
 	if err := logsDB.CreateTable(); err != nil {
-		log.Printf("Failed to create logs table: %v", err)
 		return nil, fmt.Errorf("failed to create logs table: %w", err)
 	}
-
-	log.Println("Successfully created logs table")
-
 	return logsDB, nil
 }
 

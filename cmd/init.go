@@ -37,9 +37,8 @@ const logo = `
 
 var (
 	logoStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#01FAC6")).Bold(true)
-	tipMsgStyle    = lipgloss.NewStyle().PaddingLeft(1).Foreground(lipgloss.Color("190")).Italic(true)
-	endingMsgStyle = lipgloss.NewStyle().PaddingLeft(1).Foreground(lipgloss.Color("170")).Bold(true)
-	// Add more styles
+	tipMsgStyle    = lipgloss.NewStyle().PaddingLeft(1).Align(lipgloss.Left).Foreground(lipgloss.Color("190")).Italic(true)
+	endingMsgStyle = lipgloss.NewStyle().PaddingLeft(1).Align(lipgloss.Left).Foreground(lipgloss.Color("170")).Bold(true)
 )
 
 var (
@@ -124,22 +123,24 @@ directory where you want to initialize your project.`,
 
 		if project.ProjectName == "" {
 			isInteractive = true
-			tprogram := tea.NewProgram(textinput.InitialTextInputModel(options.ProjectName, "Name your Jotl project.", project))
+			projectDir, _ := utils.GetProjectDirName()
+			placeholder := fmt.Sprintf("Press Enter to use default (%s)", projectDir)
+
+			tprogram := tea.NewProgram(textinput.InitialTextInputModel(options.ProjectName, "Name your Jotl project.", placeholder, project))
 			if _, err := tprogram.Run(); err != nil {
 				log.Printf("Name of project contains an error: %v", err)
 				cobra.CheckErr(textinput.CreateErrorInputModel(err).Err())
 			}
 
-			if options.ProjectName.Output != "" && !utils.ValidateModuleName(options.ProjectName.Output) {
-				err = fmt.Errorf("'%s' is not a valid module name. Please choose a different name", options.ProjectName.Output)
+			if !utils.ValidateModuleName(options.ProjectName.Output) && options.ProjectName.Output != "" {
+				err := fmt.Errorf("'%s' is not a valid module name. Please choose a different name", options.ProjectName.Output)
 				cobra.CheckErr(textinput.CreateErrorInputModel(err).Err())
 			}
 
 			project.ExitCLI(tprogram)
 
 			project.ProjectName = options.ProjectName.Output
-			err := cmd.Flag("name").Value.Set(project.ProjectName)
-			if err != nil {
+			if err := cmd.Flag("name").Value.Set(project.ProjectName); err != nil {
 				log.Fatal("failed to set the name flag value", err)
 			}
 		}
@@ -239,7 +240,7 @@ directory where you want to initialize your project.`,
 				log.Printf("Problem releasing terminal: %v", releaseErr)
 			}
 			_ = utils.DeleteJotlOnFail(currentWorkingDir)
-			fmt.Println(endingMsgStyle.Render("This must be strange to you. It is strange to us too. Make sure you have a good internet connection and try `jotl init` once again."))
+			fmt.Println(endingMsgStyle.Render("This might be strange to you. It is strange to us too. Make sure you have a good internet connection and try `jotl init` once again."))
 
 			// []: send error data for debugging
 			cobra.CheckErr(textinput.CreateErrorInputModel(err).Err())

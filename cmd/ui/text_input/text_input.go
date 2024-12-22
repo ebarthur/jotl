@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ebarthur/jotl/cmd/program"
+	"github.com/ebarthur/jotl/cmd/utils"
 )
 
 var (
@@ -54,12 +55,16 @@ func sanitizeInput(input string) error {
 
 // InitialTextInputModel initializes a textinput step
 // with the given data
-func InitialTextInputModel(output *Output, header string, program *program.Project) model {
+func InitialTextInputModel(output *Output, header, placeholder string, program *program.Project) model {
 	ti := textinput.New()
+	if placeholder != "" {
+		ti.Placeholder = placeholder
+	}
 	ti.Focus()
 	ti.CharLimit = 156
-	ti.Width = 20
+	ti.Width = 56
 	ti.Validate = sanitizeInput
+	ti.Placeholder = placeholder
 
 	return model{
 		textInput: ti,
@@ -105,6 +110,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			if len(m.textInput.Value()) > 1 {
 				m.output.update(m.textInput.Value())
+				return m, tea.Quit
+			} else if m.header == titleStyle.Render("Name your Jotl project.") {
+				{
+					projectName, _ := utils.GetProjectDirName()
+					m.output.update(projectName)
+				}
 				return m, tea.Quit
 			}
 		case tea.KeyCtrlC, tea.KeyEsc:

@@ -28,7 +28,7 @@ const envTemplate = `# Jotl is a modern CLI tool designed to streamline log mana
 # for developers like you.
 # Please consider starring the repo if you find it useful: https://github.com/ebarthur/jotl
 
-DB_CONNECTION_STRING=%s
+DB_URL=%s
 
 # Application Configuration (This is read-only)
 APP_NAME=%s
@@ -471,4 +471,13 @@ func ServeConfig(port string) error {
 		return fmt.Errorf("config server failed: %w", err)
 	}
 	return nil
+}
+
+// GetProjectDirName returns the base name of the current working directory.
+func GetProjectDirName() (string, error) {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current directory: %w", err)
+	}
+	return filepath.Base(currentDir), nil
 }
