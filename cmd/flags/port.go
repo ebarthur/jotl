@@ -6,11 +6,14 @@ import (
 )
 
 type Port string
+type ConfigPort string
 
 const (
 	MinPort = 3000
 	MaxPort = 65535
 )
+
+var CfgPort ConfigPort
 
 func (p Port) String() string {
 	return string(p)

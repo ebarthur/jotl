@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ebarthur/jotl/cmd/config"
 	"github.com/ebarthur/jotl/cmd/db"
@@ -22,6 +23,7 @@ import (
 	"github.com/gofrs/flock"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/pflag"
+	"golang.org/x/exp/rand"
 )
 
 const envTemplate = `# Jotl is a modern CLI tool designed to streamline log management 
@@ -449,10 +451,40 @@ func OpenBrowser(url string) {
 
 // User config is accessed in web studio by serving it on an endpoint
 // that the static app can access
-func ServeConfig(port string) error {
-	configPort := ParsePort(port) + 1
-	addr := fmt.Sprintf(":%d", configPort)
 
+func ServeConfig(port string) (cfgPort string, err error) {
+	rand.Seed(uint64(time.Now().UnixNano()))
+	maxRetries := 5
+	var configPort int
+
+	for retries := 0; retries < maxRetries; retries++ {
+		// Calculate a random offset and adjust the config port
+		randomOffset := rand.Intn(11) + 5
+		if rand.Intn(2) == 0 {
+			randomOffset = -randomOffset
+		}
+		configPort = ParsePort(port) + randomOffset
+
+		// Check if the port is available
+		addr := fmt.Sprintf(":%d", configPort)
+		ln, err := net.Listen("tcp", addr)
+		if err == nil {
+			// If the port is available, close the listener and proceed
+			_ = ln.Close()
+			cfgPort = addr
+			break
+		}
+
+		// If the port is unavailable, retry
+		if retries == maxRetries-1 {
+			return "", fmt.Errorf("unable to find an available config port after %d retries", maxRetries)
+		}
+	}
+
+	// Update the global configPort
+	flags.CfgPort = flags.ConfigPort(fmt.Sprintf("%d", configPort))
+
+	// Start the config server
 	http.HandleFunc("/cfg", func(w http.ResponseWriter, r *http.Request) {
 		currentDir, _ := os.Getwd()
 		cfg, err := config.LoadConfig(currentDir)
@@ -467,10 +499,13 @@ func ServeConfig(port string) error {
 		}
 	})
 
-	if err := http.ListenAndServe(addr, nil); err != nil {
-		return fmt.Errorf("config server failed: %w", err)
-	}
-	return nil
+	go func() {
+		if err := http.ListenAndServe(cfgPort, nil); err != nil {
+			fmt.Printf("Config server failed: %v\n", err)
+		}
+	}()
+
+	return cfgPort, nil
 }
 
 // GetProjectDirName returns the base name of the current working directory.

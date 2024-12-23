@@ -32,8 +32,8 @@ It provides a modern, user-friendly interface to:
 - Monitor real-time log updates through the dashboard
 - Export and share log data
 
-The dashboard automatically starts on port 8080 and will increment
-until it finds an available port if 8080 is in use.
+The dashboard automatically starts on port 8080 and will find a suitable port if 
+8080 is in use.
 
 Note: The studio dashboard requires the project to be initialized with 'jotl init'
 and have a valid database connection configured in the jotl directory.`)
@@ -83,7 +83,7 @@ var studioCommand = &cobra.Command{
 }
 
 func init() {
-	studioCommand.Flags().StringVarP((*string)(&port), "port", "p", "8080", "Port to run the studio dashboard (default: 8080)")
+	studioCommand.Flags().StringVarP((*string)(&port), "port", "p", "8080", "Port to run the studio dashboard")
 	rootCmd.AddCommand(studioCommand)
 }
 
@@ -117,7 +117,7 @@ func startServer(port string) {
 
 	link := "http://localhost:" + port
 	fmt.Printf("%s\n", logoStyle.Render(logo))
-	fmt.Println(tipMsgStyle.Render(fmt.Sprintf("Server starting on: %s", clickableLink(link)))) // change stule
+	fmt.Println(tipMsgStyle.Render(fmt.Sprintf("Server listening on: %s", clickableLink(link)))) // change style
 
 	go func() {
 		time.Sleep(2 * time.Second)
@@ -129,7 +129,6 @@ func startServer(port string) {
 	}
 
 	<-done
-	fmt.Println(endingMsgStyle.Render("Server stopped"))
 }
 
 // This makes the link clickable in the terminal (Though we automatically open the browser for the user)
@@ -143,15 +142,11 @@ func gracefulShutdown(apiServer *http.Server, done chan bool) {
 
 	<-ctx.Done()
 
-	fmt.Println(endingMsgStyle.Render("shutting down gracefully, press Ctrl+C again to force"))
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := apiServer.Shutdown(ctx); err != nil {
 		log.Printf("Server forced to shutdown with error: %v", err)
 	}
-
-	fmt.Println(endingMsgStyle.Render("Server exiting"))
 
 	done <- true
 }

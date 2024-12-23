@@ -37,8 +37,8 @@ const logo = `
 
 var (
 	logoStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#01FAC6")).Bold(true)
-	tipMsgStyle    = lipgloss.NewStyle().PaddingLeft(1).Align(lipgloss.Left).Foreground(lipgloss.Color("190")).Italic(true)
-	endingMsgStyle = lipgloss.NewStyle().PaddingLeft(1).Align(lipgloss.Left).Foreground(lipgloss.Color("170")).Bold(true)
+	tipMsgStyle    = lipgloss.NewStyle().Align(lipgloss.Left).Foreground(lipgloss.Color("190")).Italic(true)
+	endingMsgStyle = lipgloss.NewStyle().Align(lipgloss.Left).Foreground(lipgloss.Color("170")).Bold(true)
 )
 
 var (
@@ -247,7 +247,7 @@ directory where you want to initialize your project.`,
 		}
 
 		fmt.Println(endingMsgStyle.Render("\nNext steps:"))
-		fmt.Println(tipMsgStyle.Render("• Run `jotl dev --watch` to start logging now!"))
+		fmt.Println(tipMsgStyle.Render("• Run `jotl dev` to start logging now!"))
 
 		if isInteractive {
 			nonInteractiveCommand := utils.NonInteractiveCommand(cmd.Use, cmd.Flags())
